@@ -97,8 +97,12 @@ const SYSTEM_PROMPT = `You are Gruff, a trading agent on GOAT Network (Bitcoin L
 
 You have your own wallet and can check balances, get swap quotes, and execute swaps via OKU (Uniswap V3 on GOAT).
 
-Available tokens on mainnet: WGBTC, USDCe, GOATED, BTCB, USDT, uBTC, DOGEB, BILLY, NANNY.
-Main trading pairs: WGBTC/USDCe (fee 500), USDCe/GOATED (fee 100), WGBTC/BTCB (fee 500).
+You can trade ANY token on GOAT Network — not just well-known ones. If the user mentions a token you don't recognise:
+- If they give a contract address (0x...), use it directly with lookup_token to get its info
+- Use find_pool to discover which fee tier has liquidity for a pair before quoting or swapping
+- You can pass contract addresses directly as token_in / token_out in any tool
+
+Known tokens for convenience: WGBTC, USDCe, GOATED, BTCB, USDT, uBTC, DOGEB, BILLY, NANNY.
 
 ${IS_TESTNET ? "NOTE: You are on testnet. OKU DEX is not deployed on testnet so swaps are not available. You can only check balances." : ""}
 
@@ -120,7 +124,7 @@ export async function runGruffAgent(message: string): Promise<AgentResult> {
       model: openai("gpt-4o"),
       system: SYSTEM_PROMPT,
       messages: [{ role: "user", content: message }],
-      maxSteps: 6,
+      maxSteps: 10,
       temperature: 0.2,
 
       tools: {
@@ -161,6 +165,64 @@ export async function runGruffAgent(message: string): Promise<AgentResult> {
             };
             collected.token_balance = data;
             return data;
+          },
+        }),
+
+        lookup_token: tool({
+          description: "Look up any ERC-20 token by contract address. Returns symbol, decimals, name, and your wallet balance.",
+          parameters: z.object({
+            address: z.string().describe("Token contract address e.g. 0x3022b87..."),
+          }),
+          execute: async ({ address }) => {
+            const { account, publicClient } = getClients();
+            const addr = address as Hex;
+            const NAME_ABI = parseAbi(["function name() view returns (string)"]);
+            const [symbol, decimals, name, rawBalance] = await Promise.all([
+              publicClient.readContract({ address: addr, abi: ERC20_ABI, functionName: "symbol" }),
+              publicClient.readContract({ address: addr, abi: ERC20_ABI, functionName: "decimals" }),
+              publicClient.readContract({ address: addr, abi: NAME_ABI, functionName: "name" }).catch(() => ""),
+              publicClient.readContract({ address: addr, abi: ERC20_ABI, functionName: "balanceOf", args: [account.address] }),
+            ]);
+            return {
+              address: addr,
+              symbol: symbol as string,
+              name: name as string,
+              decimals: decimals as number,
+              wallet_balance: formatUnits(rawBalance as bigint, decimals as number),
+            };
+          },
+        }),
+
+        find_pool: tool({
+          description: "Find which fee tier has an active liquidity pool for a token pair on OKU. Try this before quoting an unknown token.",
+          parameters: z.object({
+            token_in: z.string().describe("Token address or symbol to sell"),
+            token_out: z.string().describe("Token address or symbol to buy"),
+          }),
+          execute: async ({ token_in, token_out }) => {
+            if (IS_TESTNET) return { error: "OKU is not on testnet." };
+            const { publicClient } = getClients();
+            const tokenIn = resolveAddress(token_in);
+            const tokenOut = resolveAddress(token_out);
+            const decimalsIn = await publicClient.readContract({ address: tokenIn, abi: ERC20_ABI, functionName: "decimals" }) as number;
+            const testAmount = parseUnits("0.001", decimalsIn);
+            const feeTiers = [100, 500, 3000, 10000];
+            const results: { fee_tier: number; has_liquidity: boolean; error?: string }[] = [];
+            for (const fee of feeTiers) {
+              try {
+                await publicClient.readContract({
+                  address: OKU_QUOTER,
+                  abi: QUOTER_ABI,
+                  functionName: "quoteExactInputSingle",
+                  args: [{ tokenIn, tokenOut, amountIn: testAmount, fee, sqrtPriceLimitX96: BigInt(0) }],
+                });
+                results.push({ fee_tier: fee, has_liquidity: true });
+              } catch {
+                results.push({ fee_tier: fee, has_liquidity: false });
+              }
+            }
+            const best = results.find(r => r.has_liquidity);
+            return { results, recommended_fee_tier: best?.fee_tier ?? null };
           },
         }),
 
