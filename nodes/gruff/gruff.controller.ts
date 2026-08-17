@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { gruff } from "./agent/gruff";
-import { MessageSchema } from "./goat.schema";
+import { MessageSchema } from "./gruff.schema";
 
 export async function runGruff(req: Request, res: Response): Promise<void> {
   try {

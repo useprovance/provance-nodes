@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { runGruff } from "./goat.controller";
+import { runGruff } from "./gruff.controller";
 
 const router = Router();
 
@@ -8,7 +8,7 @@ router.post("/run", runGruff);
 router.get("/health", (_req, res) => {
   res.json({
     success: true,
-    data: { status: "ok", node: "goat" },
+    data: { status: "ok", node: "gruff" },
     message: "Gruff is running",
   });
 });

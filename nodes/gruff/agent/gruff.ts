@@ -20,8 +20,8 @@ import {
   ERC20_ABI,
   QUOTER_ABI,
   SWAP_ROUTER_ABI,
-} from "../goat.constants";
-import type { AgentResult } from "../goat.types";
+} from "../gruff.constants";
+import type { AgentResult } from "../gruff.types";
 
 const SYSTEM_PROMPT = `You are Gruff, a trading agent on GOAT Network (Bitcoin L2). You are currently on ${IS_TESTNET ? "testnet" : "mainnet"}.
 

@@ -1,5 +1,5 @@
 {
-  "name": "@provance/node-goat",
+  "name": "@provance/node-gruff",
   "version": "1.0.0",
   "main": "src/agent.ts",
   "dependencies": {

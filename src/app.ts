@@ -1,6 +1,6 @@
 import express from "express";
 import { corsMiddleware } from "./middleware/cors";
-import goatRouter from "../nodes/goat/goat.route";
+import gruffRouter from "../nodes/gruff/gruff.route";
 import blazeRouter from "../nodes/blaze/blaze.route";
 import dexscreenerRouter from "../nodes/dexscreener/dexscreener.route";
 import goplusRouter from "../nodes/goplus/goplus.route";
@@ -24,7 +24,7 @@ app.get("/health", (_req, res) => {
         "honeypot",
         "ai-decision",
         "telegram",
-        "goat",
+        "gruff",
         "blaze",
       ],
     },
@@ -32,7 +32,7 @@ app.get("/health", (_req, res) => {
   });
 });
 
-app.use("/goat", goatRouter);
+app.use("/gruff", gruffRouter);
 app.use("/blaze", blazeRouter);
 app.use("/dexscreener", dexscreenerRouter);
 app.use("/goplus", goplusRouter);
