@@ -1,0 +1,13 @@
+{
+  "name": "provance-nodes",
+  "version": "1.0.0",
+  "description": "Provance nodes — AI agents for the Provance canvas",
+  "scripts": {
+    "start": "pm2 start ecosystem.config.js",
+    "stop": "pm2 stop ecosystem.config.js",
+    "restart": "pm2 restart ecosystem.config.js",
+    "logs": "pm2 logs",
+    "status": "pm2 status",
+    "install:all": "for dir in dexscreener goplus honeypot ai-decision telegram goat stellar-trader; do echo \"Installing $dir...\" && cd $dir && pnpm install && cd ..; done"
+  }
+}

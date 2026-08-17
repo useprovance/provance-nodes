@@ -1,0 +1,28 @@
+## Secrets — never commit these
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+## Dependencies
+node_modules/
+**/node_modules/
+
+## Build output
+dist/
+**/dist/
+.next/
+**/.next/
+
+## PM2
+.pm2/
+
+## OS
+.DS_Store
+Thumbs.db
+
+## Logs
+*.log
+logs/
