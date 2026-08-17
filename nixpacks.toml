@@ -1,0 +1,5 @@
+[phases.install]
+cmds = ["npm install -g pnpm@11.5.2 && pnpm install"]
+
+[start]
+cmd = "pnpm exec tsx src/server.ts"

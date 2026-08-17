@@ -2,6 +2,7 @@
   "name": "provance-nodes",
   "version": "1.0.0",
   "description": "Provance nodes — AI agents for the Provance canvas",
+  "packageManager": "pnpm@11.5.2",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
