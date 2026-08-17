@@ -1,0 +1,8 @@
+{
+  "name": "@provance/node-goplus",
+  "version": "1.0.0",
+  "main": "src/agent.ts",
+  "dependencies": {
+    "zod": "^3.23.8"
+  }
+}

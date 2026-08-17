@@ -1,5 +1,6 @@
 ## Secrets — never commit these
 .env
+**/.env
 .env.local
 .env.*.local
 *.pem

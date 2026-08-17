@@ -1,0 +1,5 @@
+packages:
+  - "nodes/*"
+
+allowBuilds:
+  esbuild: true
