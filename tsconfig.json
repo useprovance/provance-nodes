@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
-    "moduleResolution": "bundler",
+    "module": "Node16",
+    "moduleResolution": "node16",
     "esModuleInterop": true,
     "strict": true,
     "outDir": "dist",

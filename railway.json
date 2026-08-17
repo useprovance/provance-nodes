@@ -1,5 +1,8 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "buildCommand": "pnpm install"
+  },
   "deploy": {
     "startCommand": "pnpm exec tsx src/server.ts",
     "restartPolicyType": "ON_FAILURE",
