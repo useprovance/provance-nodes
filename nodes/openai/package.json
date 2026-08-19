@@ -1,0 +1,9 @@
+{
+  "name": "@provance/node-openai",
+  "version": "1.0.0",
+  "main": "openai.actions.ts",
+  "dependencies": {
+    "openai": "^4.104.0",
+    "zod": "^3.23.8"
+  }
+}

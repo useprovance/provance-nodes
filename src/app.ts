@@ -7,6 +7,7 @@ import goplusRouter from "../nodes/goplus/goplus.route";
 import honeypotRouter from "../nodes/honeypot/honeypot.route";
 import telegramRouter from "../nodes/telegram/telegram.route";
 import geckoterminalRouter from "../nodes/geckoterminal/geckoterminal.route";
+import openaiRouter from "../nodes/openai/openai.route";
 import triggerRouter from "../nodes/core/modules/trigger/trigger.route";
 
 const app = express();
@@ -27,6 +28,7 @@ app.get("/health", (_req, res) => {
         "telegram",
         "gruff",
         "blaze",
+        "openai",
       ],
     },
     message: "Provance nodes running",
@@ -40,6 +42,7 @@ app.use("/geckoterminal", geckoterminalRouter);
 app.use("/goplus", goplusRouter);
 app.use("/honeypot", honeypotRouter);
 app.use("/telegram", telegramRouter);
+app.use("/openai", openaiRouter);
 app.use("/core/trigger", triggerRouter);
 
 export default app;

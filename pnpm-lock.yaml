@@ -31,15 +31,6 @@ importers:
         specifier: ^5.4.5
         version: 5.9.3
 
-  nodes/ai-decision:
-    dependencies:
-      openai:
-        specifier: ^4.52.7
-        version: 4.104.0(ws@8.21.0)(zod@3.25.76)
-      zod:
-        specifier: ^3.23.8
-        version: 3.25.76
-
   nodes/blaze:
     dependencies:
       '@ai-sdk/openai':
@@ -87,6 +78,15 @@ importers:
 
   nodes/honeypot:
     dependencies:
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+
+  nodes/openai:
+    dependencies:
+      openai:
+        specifier: ^4.104.0
+        version: 4.104.0(ws@8.21.0)(zod@3.25.76)
       zod:
         specifier: ^3.23.8
         version: 3.25.76

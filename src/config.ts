@@ -5,6 +5,7 @@ dotenv.config();
 dotenv.config({ path: "./nodes/goat/.env", override: false });
 dotenv.config({ path: "./nodes/blaze/.env", override: false });
 dotenv.config({ path: "./nodes/telegram/.env", override: false });
+dotenv.config({ path: "./nodes/openai/.env", override: false });
 
 export const config = {
   PORT: Number(process.env.PORT) || 3100,
