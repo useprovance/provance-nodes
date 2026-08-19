@@ -4,7 +4,6 @@ import dotenv from "dotenv";
 dotenv.config();
 dotenv.config({ path: "./nodes/goat/.env", override: false });
 dotenv.config({ path: "./nodes/blaze/.env", override: false });
-dotenv.config({ path: "./nodes/ai-decision/.env", override: false });
 dotenv.config({ path: "./nodes/telegram/.env", override: false });
 
 export const config = {

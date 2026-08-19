@@ -1,9 +1,0 @@
-{
-  "name": "@provance/node-ai-decision",
-  "version": "1.0.0",
-  "main": "src/agent.ts",
-  "dependencies": {
-    "openai": "^4.52.7",
-    "zod": "^3.23.8"
-  }
-}

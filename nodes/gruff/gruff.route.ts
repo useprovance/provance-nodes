@@ -8,7 +8,7 @@ router.post("/run", runGruff);
 router.get("/health", (_req, res) => {
   res.json({
     success: true,
-    data: { status: "ok", node: "gruff" },
+    data: { status: "ok", node: "gruff", actions: ["chat", "get_portfolio", "sell_position"] },
     message: "Gruff is running",
   });
 });

@@ -5,8 +5,9 @@ import blazeRouter from "../nodes/blaze/blaze.route";
 import dexscreenerRouter from "../nodes/dexscreener/dexscreener.route";
 import goplusRouter from "../nodes/goplus/goplus.route";
 import honeypotRouter from "../nodes/honeypot/honeypot.route";
-import aiDecisionRouter from "../nodes/ai-decision/ai-decision.route";
 import telegramRouter from "../nodes/telegram/telegram.route";
+import geckoterminalRouter from "../nodes/geckoterminal/geckoterminal.route";
+import triggerRouter from "../nodes/core/modules/trigger/trigger.route";
 
 const app = express();
 
@@ -20,9 +21,9 @@ app.get("/health", (_req, res) => {
       status: "ok",
       nodes: [
         "dexscreener",
+        "geckoterminal",
         "goplus",
         "honeypot",
-        "ai-decision",
         "telegram",
         "gruff",
         "blaze",
@@ -35,9 +36,10 @@ app.get("/health", (_req, res) => {
 app.use("/gruff", gruffRouter);
 app.use("/blaze", blazeRouter);
 app.use("/dexscreener", dexscreenerRouter);
+app.use("/geckoterminal", geckoterminalRouter);
 app.use("/goplus", goplusRouter);
 app.use("/honeypot", honeypotRouter);
-app.use("/ai-decision", aiDecisionRouter);
 app.use("/telegram", telegramRouter);
+app.use("/core/trigger", triggerRouter);
 
 export default app;
