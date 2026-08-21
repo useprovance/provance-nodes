@@ -23,21 +23,19 @@ async function get(url: string) {
 
 // ─── new_pools ────────────────────────────────────────────────────────────────
 
-export async function newPools(raw: unknown) {
-  const params = NewPoolsSchema.parse(raw);
-  const network = resolveChain(params.chain);
-  const now = Date.now();
-  const maxAgeMs = params.max_age_minutes * 60 * 1000;
+type RawPool = {
+  attributes: { pool_created_at: string; reserve_in_usd: string; base_token_price_usd: string; volume_usd: { h24: string }; address: string; name: string };
+  relationships: { base_token: { data: { id: string } }; dex: { data: { id: string } } };
+};
 
-  const pages = await Promise.allSettled([
-    get(`${BASE}/networks/${network}/new_pools?page=1&include=base_token`),
-    get(`${BASE}/networks/${network}/new_pools?page=2&include=base_token`),
-    get(`${BASE}/networks/${network}/new_pools?page=3&include=base_token`),
-  ]);
-
+async function fetchPoolPages(network: string, endpoint: "new_pools" | "pools", pageCount = 3): Promise<{ pools: RawPool[]; tokenMap: Map<string, { symbol: string; name: string; address: string }> }> {
+  const pages = await Promise.allSettled(
+    Array.from({ length: pageCount }, (_, i) =>
+      get(`${BASE}/networks/${network}/${endpoint}?page=${i + 1}&include=base_token`)
+    )
+  );
   const allPools: unknown[] = [];
   const tokenMap = new Map<string, { symbol: string; name: string; address: string }>();
-
   for (const result of pages) {
     if (result.status !== "fulfilled") continue;
     const data = result.value as { data?: unknown[]; included?: unknown[] };
@@ -47,14 +45,29 @@ export async function newPools(raw: unknown) {
       if (t.type === "token") tokenMap.set(t.id, t.attributes);
     }
   }
+  return { pools: allPools as RawPool[], tokenMap };
+}
 
-  const tokens = (allPools as {
-    attributes: { pool_created_at: string; reserve_in_usd: string; base_token_price_usd: string; volume_usd: { h24: string }; address: string; name: string };
-    relationships: { base_token: { data: { id: string } }; dex: { data: { id: string } } };
-  }[])
+export async function newPools(raw: unknown) {
+  const params = NewPoolsSchema.parse(raw);
+  const network = resolveChain(params.chain);
+  const now = Date.now();
+  const maxAgeMs = params.max_age_minutes * 60 * 1000;
+
+  // Try /new_pools first; fall back to /pools for chains with low activity
+  let { pools: allPools, tokenMap } = await fetchPoolPages(network, "new_pools");
+  let usingFallback = false;
+  if (allPools.length === 0) {
+    ({ pools: allPools, tokenMap } = await fetchPoolPages(network, "pools"));
+    usingFallback = true;
+  }
+
+  const tokens = allPools
     .filter((pool) => {
-      const createdAt = pool.attributes.pool_created_at ? new Date(pool.attributes.pool_created_at).getTime() : null;
-      if (!createdAt || now - createdAt > maxAgeMs) return false;
+      if (!usingFallback) {
+        const createdAt = pool.attributes.pool_created_at ? new Date(pool.attributes.pool_created_at).getTime() : null;
+        if (!createdAt || now - createdAt > maxAgeMs) return false;
+      }
       if (parseFloat(pool.attributes.reserve_in_usd ?? "0") < params.min_liquidity_usd) return false;
       const tokenInfo = tokenMap.get(pool.relationships.base_token.data.id);
       if (tokenInfo && SKIP_SYMBOLS.has(tokenInfo.symbol)) return false;

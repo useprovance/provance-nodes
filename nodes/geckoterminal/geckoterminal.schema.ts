@@ -8,6 +8,8 @@ const CHAIN_MAP: Record<string, string> = {
   polygon: "polygon",
   avalanche: "avax",
   solana: "solana",
+  goat: "goat",
+  "goat network": "goat",
 };
 
 export function resolveChain(chain: string): string {
