@@ -1,5 +1,7 @@
 import express from "express";
+import pinoHttp from "pino-http";
 import { corsMiddleware } from "./middleware/cors";
+import { logger } from "./logger";
 import gruffRouter from "../nodes/gruff/gruff.route";
 import blazeRouter from "../nodes/blaze/blaze.route";
 import dexscreenerRouter from "../nodes/dexscreener/dexscreener.route";
@@ -12,6 +14,7 @@ import triggerRouter from "../nodes/core/modules/trigger/trigger.route";
 
 const app = express();
 
+app.use(pinoHttp({ logger }));
 app.use(express.json());
 app.use(corsMiddleware);
 

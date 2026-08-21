@@ -1,9 +1,11 @@
 import { Router } from "express";
-import { runTrigger } from "./trigger.controller";
+import { runTrigger, registerSchedule, cancelSchedule } from "./trigger.controller";
 
 const router = Router();
 
 router.post("/run", runTrigger);
+router.post("/schedule", registerSchedule);
+router.delete("/schedule/:workflowId", cancelSchedule);
 
 router.get("/health", (_req, res) => {
   res.json({
