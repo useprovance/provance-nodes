@@ -10,6 +10,7 @@ const CHAIN_MAP: Record<string, string> = {
   solana: "solana",
   goat: "goat",
   "goat network": "goat",
+  stellar: "stellar",
 };
 
 export function resolveChain(chain: string): string {

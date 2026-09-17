@@ -12,7 +12,7 @@ const HEADERS = { Accept: "application/json;version=20230302" };
 
 const SKIP_SYMBOLS = new Set([
   "USDC", "USDT", "DAI", "USDbC", "WETH", "ETH", "WBTC",
-  "WBNB", "BNB", "BUSD", "cbETH", "cbBTC", "SOL", "XRP", "BTC",
+  "WBNB", "BNB", "BUSD", "cbETH", "cbBTC", "SOL", "XRP", "BTC", "XLM",
 ]);
 
 async function get(url: string) {
@@ -200,7 +200,7 @@ export async function trendingPools(raw: unknown) {
   const network = resolveChain(params.chain);
 
   const data = await get(
-    `${BASE}/networks/${network}/trending_pools?include=base_token&page=1`
+    `${BASE}/networks/${network}/trending_pools?include=base_token&page=1&sort=${params.order}`
   ) as { data: unknown[]; included?: unknown[] };
 
   const tokenMap = new Map<string, { symbol: string; name: string; address: string }>();

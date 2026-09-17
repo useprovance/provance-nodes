@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "main": "src/agent.ts",
   "dependencies": {
-    "@ai-sdk/openai": "^1.3.22",
-    "ai": "^4.3.16",
+    "@ai-sdk/openai": "^1.3.24",
+    "@goatnetwork/agentkit": "^0.2.3",
+    "ai": "^4.3.19",
+    "ethers": "^6.17.0",
     "viem": "^2.21.0",
     "zod": "^3.23.8"
   }
