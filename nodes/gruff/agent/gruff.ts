@@ -50,7 +50,9 @@ To check native BTC: wallet.balance({ address: "${walletAddress}" })
 
 ${IS_TESTNET ? "NOTE: On testnet. OKU DEX swaps are not available — balance checks only." : ""}
 
-Always check balance before a swap. Always quote before executing. Be concise.`;
+Always check balance before a swap. Always quote before executing. Be concise.
+
+After a successful swap, always include the transaction link in your response: https://explorer.goat.network/tx/<txHash>`;
 }
 
 function getPrivateKey(): Hex {
@@ -126,9 +128,12 @@ export class GruffAgent {
     const collected: Record<string, unknown> = {};
 
     try {
-      const { provider, runtime, walletAddress } = buildAgentKit();
+      const { provider, runtime, walletAddress, publicClient } = buildAgentKit();
       const network = IS_TESTNET ? "goat-testnet" : "goat-mainnet";
-      const toolManifest = provider.vercelAITools(network);
+      const OKU_ROUTER = "0xaa52bB8110fE38D0d2d2AF0B85C3A3eE622CA455";
+      const allTools = provider.vercelAITools(network);
+      // Hide wallet.approve_erc20 from the LLM — approve is handled automatically inside dex.swap
+      const toolManifest = allTools.filter((t) => t.name !== "wallet.approve_erc20");
       // OpenAI requires tool names matching ^[a-zA-Z0-9_-]+$ — sanitize dots → underscores
       const sanitizeName = (n: string) => n.replace(/[^a-zA-Z0-9_-]/g, "_");
       // Map sanitized name → original name so we can call provider.get()
@@ -152,14 +157,39 @@ export class GruffAgent {
                 parameters: jsonSchema(t.parameters ?? { type: "object", properties: {} }),
                 execute: async (input: unknown) => {
                   const originalName = nameMap.get(safeName) ?? t.name;
-                  // Resolve any token symbol fields to addresses before calling DEX actions
                   const resolved = resolveTokenFields(input as Record<string, unknown>);
-                  const action = provider.get(originalName);
                   const ctx = { traceId: crypto.randomUUID(), network, now: Date.now() };
-                  const res = await runtime.run(action, ctx, resolved);
+
+                  // For swaps, cap amountIn to wallet balance then approve before swap
+                  if (originalName === "dex.swap") {
+                    const tokenIn = resolved.tokenIn as Hex;
+                    const rawBalance = await publicClient.readContract({
+                      address: tokenIn, abi: ERC20_ABI, functionName: "balanceOf", args: [walletAddress],
+                    }) as bigint;
+                    const requestedAmount = BigInt(resolved.amountIn as string);
+                    if (rawBalance === 0n) throw new Error("Insufficient balance: wallet has no tokenIn balance");
+                    const safeAmountIn = requestedAmount > rawBalance ? rawBalance : requestedAmount;
+                    (resolved as Record<string, unknown>).amountIn = safeAmountIn.toString();
+
+                    const approveAction = provider.get("wallet.approve_erc20");
+                    const approveRes = await runtime.run(approveAction, ctx, {
+                      tokenAddress: tokenIn,
+                      spender: OKU_ROUTER,
+                      amount: safeAmountIn.toString(),
+                    }, { confirmed: true });
+                    if (!approveRes.ok) throw new Error(`Approve failed: ${approveRes.error}`);
+                  }
+
+                  const action = provider.get(originalName);
+                  const res = await runtime.run(action, ctx, resolved, { confirmed: true });
                   if (res.ok) {
-                    collected[originalName] = res.output;
-                    return res.output;
+                    let output = res.output as Record<string, unknown>;
+                    // Attach explorer link for swap results
+                    if (originalName === "dex.swap" && output?.txHash) {
+                      output = { ...output, explorer: `https://explorer.goat.network/tx/${output.txHash}` };
+                    }
+                    collected[originalName] = output;
+                    return output;
                   }
                   throw new Error(res.error ?? "Action failed");
                 },
@@ -169,7 +199,17 @@ export class GruffAgent {
         ),
       });
 
-      return { success: true, data: collected, message: result.text };
+      // Flatten swap result to top-level so downstream nodes (e.g. Telegram) can access tx_hash directly
+      const swapResult = collected["dex.swap"] as Record<string, unknown> | undefined;
+      const flatData: Record<string, unknown> = {
+        ...collected,
+        ...(swapResult?.txHash ? {
+          tx_hash: swapResult.txHash,
+          explorer: swapResult.explorer ?? `https://explorer.goat.network/tx/${swapResult.txHash}`,
+          action: "SWAP",
+        } : {}),
+      };
+      return { success: true, data: flatData, message: result.text };
     } catch (err) {
       return { success: false, data: {}, message: err instanceof Error ? err.message : "Agent failed" };
     }
@@ -254,13 +294,13 @@ export class GruffAgent {
       const approveAction = provider.get("wallet.approve_erc20");
       await runtime.run(approveAction, ctx, {
         tokenAddress: tokenIn, spender: "0xaa52bB8110fE38D0d2d2AF0B85C3A3eE622CA455", amount: amountIn.toString(),
-      });
+      }, { confirmed: true });
 
       // Swap
       const swapAction = provider.get("dex.swap");
       const swapRes = await runtime.run(swapAction, ctx, {
         tokenIn, tokenOut, fee: feeTier, amountIn: amountIn.toString(), amountOutMinimum: amountOutMin.toString(),
-      });
+      }, { confirmed: true });
       if (!swapRes.ok) throw new Error(swapRes.error ?? "Swap failed");
 
       const { txHash } = swapRes.output as { txHash: string };

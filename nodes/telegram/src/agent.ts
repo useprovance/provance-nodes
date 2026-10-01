@@ -63,7 +63,7 @@ function formatAlert(input: TelegramInput): string {
       `• PnL: ${pnlSign}$${esc(input.pnl_usd?.toFixed(2))} (${pnlSign}${esc(input.pnl_pct?.toFixed(1))}%)`,
       ``,
       `📝 ${b("Reason:")} ${esc(input.reason)}`,
-      input.tx_hash ? `🔗 ${a("View tx", `https://basescan.org/tx/${input.tx_hash}`)}` : "",
+      input.tx_hash ? `🔗 ${a("View tx", (input as Record<string, unknown>).explorer as string || `https://basescan.org/tx/${input.tx_hash}`)}` : "",
       `⛓ Chain: ${chain}`,
     ].filter(Boolean).join("\n");
   }
