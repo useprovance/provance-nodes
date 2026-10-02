@@ -12,8 +12,9 @@ export async function runGruff(req: Request, res: Response): Promise<void> {
       case "execute_trade":
       case undefined:
       case null: {
-        const { message } = MessageSchema.parse(req.body ?? {});
-        result = await gruff.run(message);
+        const parsed = MessageSchema.parse(req.body ?? {});
+        const { message, ...context } = parsed as Record<string, unknown> & { message: string };
+        result = await gruff.run(message, context);
         break;
       }
 

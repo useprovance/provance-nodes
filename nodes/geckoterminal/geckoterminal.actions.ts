@@ -13,6 +13,8 @@ const HEADERS = { Accept: "application/json;version=20230302" };
 const SKIP_SYMBOLS = new Set([
   "USDC", "USDT", "DAI", "USDbC", "WETH", "ETH", "WBTC",
   "WBNB", "BNB", "BUSD", "cbETH", "cbBTC", "SOL", "XRP", "BTC", "XLM",
+  // GOAT Network base currencies
+  "USDC.e", "USDCe", "WGBTC",
 ]);
 
 async function get(url: string) {

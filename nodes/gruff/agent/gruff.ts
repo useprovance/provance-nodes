@@ -38,17 +38,29 @@ Token addresses:
 - WGBTC:  0xbC10000000000000000000000000000000000000
 - USDCe:  0x3022b87ac063DE95b1570F46f5e470F8B53112D8
 - GOATED: 0xbC10000000000000000000000000000000000001
+- DOGEB:  0x1E0d0303a8c4aD428953f5ACB1477dB42bb838cf
 - BTCB:   0xfe41e7e5cB3460c483AB2A38eb605Cda9e2d248E
 - USDT:   0xE1AD845D93853fff44990aE0DcecD8575293681e
 
-IMPORTANT — Active pools on OKU: ONLY WGBTC ↔ USDCe at fee=500 exists. No other pairs have liquidity. Do not attempt to swap any other pair.
+Active pools on OKU GOAT. Gruff's base currency is USDCe. Only swap when you have the tokenIn in your wallet:
+- USDCe → WGBTC:  fee=500  (buyable with USDCe)
+- USDCe → GOATED: fee=100  (buyable with USDCe)
+- USDCe → DOGEB:  fee=3000 (buyable with USDCe)
+- WGBTC → BTCB:   fee=500  (needs WGBTC, NOT USDCe — skip if you only hold USDCe)
 
-IMPORTANT — fee tier: Always use fee=500. Never use 3000 or 10000.
+If the token_address is not WGBTC, GOATED, or DOGEB — skip, you cannot buy it with USDCe.
 
 To check a token balance: wallet.balance({ address: "${walletAddress}", tokenAddress: "<token_address>" })
 To check native BTC: wallet.balance({ address: "${walletAddress}" })
 
 ${IS_TESTNET ? "NOTE: On testnet. OKU DEX swaps are not available — balance checks only." : ""}
+
+WORKFLOW INPUT RULES — when you receive structured input from the workflow:
+- If the input contains "passed": true — the security scan is already done and approved. Do NOT run or wait for any scan. Proceed immediately to execute the trade.
+- If the input contains "passed": false — skip the trade, explain why.
+- The "token_address" field is the token the workflow wants to buy using USDCe. Map it: if token_address == WGBTC address, buy WGBTC. If it is anything other than WGBTC (0xbC10000000000000000000000000000000000000), skip — you cannot trade it on OKU.
+- Ignore the "if security scan passes" text in the message field — the "passed" field is the definitive answer.
+- "Spend no more than $X" — convert X USD to USDCe base units (6 decimals) and use that as amountIn, capped to your actual balance.
 
 Always check balance before a swap. Always quote before executing. Be concise.
 
@@ -103,6 +115,7 @@ function buildAgentKit() {
 
 // Resolve token symbol fields to addresses before passing to DEX actions.
 // Handles tokenIn, tokenOut, tokenAddress — anything that looks like a symbol.
+
 function resolveTokenFields(input: Record<string, unknown>): Record<string, unknown> {
   const TOKEN_FIELDS = ["tokenIn", "tokenOut", "tokenAddress"];
   const out: Record<string, unknown> = { ...input };
@@ -116,15 +129,11 @@ function resolveTokenFields(input: Record<string, unknown>): Record<string, unkn
       }
     }
   }
-  // Only fee=500 pool exists on GOAT Network OKU — override anything else
-  if ("fee" in out && out.fee !== 500) {
-    out.fee = 500;
-  }
   return out;
 }
 
 export class GruffAgent {
-  async run(message: string): Promise<AgentResult> {
+  async run(message: string, context: Record<string, unknown> = {}): Promise<AgentResult> {
     const collected: Record<string, unknown> = {};
 
     try {
@@ -144,7 +153,10 @@ export class GruffAgent {
       const result = await generateText({
         model: openai("gpt-4o"),
         system: buildSystemPrompt(walletAddress),
-        messages: [{ role: "user", content: message }],
+        messages: [{ role: "user", content: Object.keys(context).length > 0
+          ? `${message}\n\nWorkflow context:\n${JSON.stringify(context, null, 2)}`
+          : message,
+        }],
         maxSteps: 10,
         temperature: 0.2,
         tools: Object.fromEntries(
@@ -194,6 +206,10 @@ export class GruffAgent {
 
                   const action = provider.get(originalName);
                   const res = await runtime.run(action, ctx, resolved, { confirmed: true });
+                  // Quote revert = no pool for this pair — return null so LLM can decide to skip
+                  if (!res.ok && originalName === "dex.quote") {
+                    return { amountOut: "0", error: "no_pool", message: `No liquidity pool found for this pair` };
+                  }
                   if (res.ok) {
                     let output = res.output as Record<string, unknown>;
                     // Attach explorer link for swap results
@@ -215,15 +231,19 @@ export class GruffAgent {
       const swapResult = collected["dex.swap"] as Record<string, unknown> | undefined;
       const flatData: Record<string, unknown> = {
         ...collected,
+        agent_message: result.text,
         ...(swapResult?.txHash ? {
           tx_hash: swapResult.txHash,
           explorer: swapResult.explorer ?? `https://explorer.goat.network/tx/${swapResult.txHash}`,
           action: "SWAP",
-        } : {}),
+        } : {
+          action: "SKIP",
+        }),
       };
       return { success: true, data: flatData, message: result.text };
     } catch (err) {
-      return { success: false, data: {}, message: err instanceof Error ? err.message : "Agent failed" };
+      const errMsg = err instanceof Error ? err.message : "Agent failed";
+      return { success: false, data: { agent_message: errMsg, action: "ERROR" }, message: errMsg };
     }
   }
 
