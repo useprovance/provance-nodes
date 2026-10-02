@@ -160,6 +160,18 @@ export class GruffAgent {
                   const resolved = resolveTokenFields(input as Record<string, unknown>);
                   const ctx = { traceId: crypto.randomUUID(), network, now: Date.now() };
 
+                  // wallet.balance can throw BAD_DATA if tokenAddress isn't a real ERC20 — return zero gracefully
+                  if (originalName === "wallet.balance" && resolved.tokenAddress) {
+                    try {
+                      const raw = await publicClient.readContract({
+                        address: resolved.tokenAddress as Hex, abi: ERC20_ABI, functionName: "balanceOf", args: [walletAddress],
+                      }) as bigint;
+                      return { address: walletAddress, tokenAddress: resolved.tokenAddress, balance: raw.toString() };
+                    } catch {
+                      return { address: walletAddress, tokenAddress: resolved.tokenAddress, balance: "0", error: "token_not_found" };
+                    }
+                  }
+
                   // For swaps, cap amountIn to wallet balance then approve before swap
                   if (originalName === "dex.swap") {
                     const tokenIn = resolved.tokenIn as Hex;
