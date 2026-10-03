@@ -10,10 +10,13 @@ import {
 const BASE = "https://api.geckoterminal.com/api/v2";
 const HEADERS = { Accept: "application/json;version=20230302" };
 
+// TODO: SKIP_SYMBOLS should not be decided here. The scanner should return all tokens
+// and let the downstream agent (e.g. Gruff) decide what is tradeable based on its
+// own pools and base currency. Move this filtering logic to the agent layer.
 const SKIP_SYMBOLS = new Set([
   "USDC", "USDT", "DAI", "USDbC", "WETH", "ETH", "WBTC",
   "WBNB", "BNB", "BUSD", "cbETH", "cbBTC", "SOL", "XRP", "BTC", "XLM",
-  // GOAT Network base currencies
+  // GOAT Network base currencies — temporary until agent handles this
   "USDC.e", "USDCe", "WGBTC",
 ]);
 
@@ -26,7 +29,7 @@ async function get(url: string) {
 // ─── new_pools ────────────────────────────────────────────────────────────────
 
 type RawPool = {
-  attributes: { pool_created_at: string; reserve_in_usd: string; base_token_price_usd: string; volume_usd: { h24: string }; address: string; name: string };
+  attributes: { pool_created_at: string; reserve_in_usd: string; base_token_price_usd: string; volume_usd: { h24: string } | Record<string, string>; address: string; name: string };
   relationships: { base_token: { data: { id: string } }; dex: { data: { id: string } } };
 };
 
@@ -70,7 +73,9 @@ export async function newPools(raw: unknown) {
         const createdAt = pool.attributes.pool_created_at ? new Date(pool.attributes.pool_created_at).getTime() : null;
         if (!createdAt || now - createdAt > maxAgeMs) return false;
       }
-      if (parseFloat(pool.attributes.reserve_in_usd ?? "0") < params.min_liquidity_usd) return false;
+      const liquidity = parseFloat(pool.attributes.reserve_in_usd ?? "0");
+      const vol24h = parseFloat((pool.attributes.volume_usd as Record<string, string>)?.h24 ?? "0");
+      if (Math.max(liquidity, vol24h) < params.min_liquidity_usd) return false;
       const tokenInfo = tokenMap.get(pool.relationships.base_token.data.id);
       if (tokenInfo && SKIP_SYMBOLS.has(tokenInfo.symbol)) return false;
       return true;
