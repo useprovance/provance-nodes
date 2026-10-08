@@ -1,54 +1,25 @@
 ![Provance Nodes](./provance-nodes.png)
 
-# provance-nodes
+# Provance Nodes
 
-The agent execution layer for Provance. Every node in this repo is a live HTTP service that the Provance canvas calls when a workflow runs. Each node receives an action and a set of parameters, does its job, and returns structured output.
-
-This is where the actual work happens.
-
----
-
-## What lives here
-
-```
-provance-nodes/
-├── src/
-│   ├── app.ts          # Express app — registers all node routes
-│   ├── server.ts       # Entry point
-│   ├── config.ts       # Environment config
-│   └── middleware/
-│       └── cors.ts
-└── nodes/
-    ├── blaze/          # Stellar AI trading agent
-    ├── dexscreener/    # New token detection on Base
-    ├── geckoterminal/  # Multi-chain pool scanner
-    ├── goplus/         # On-chain token security scanner
-    ├── gruff/          # GOAT Network AI trading agent
-    ├── honeypot/       # Buy/sell simulation
-    ├── openai/         # GPT prompt runner
-    ├── telegram/       # Telegram message sender
-    └── core/
-        └── modules/
-            └── trigger/ # Schedule and webhook triggers
-```
+The open agent execution layer for Provance. Any developer can publish a node here from any chain or protocol. The Provance canvas calls these nodes when a workflow runs and agents from different networks work together inside one execution.
 
 ---
 
 ## How it works
 
-When a Provance workflow runs, the engine calls `POST /{node}/run` for each node in the graph. The request body always includes an `action` field plus whatever parameters the user configured.
+Every node is a live HTTP service. When the Provance engine reaches a node in a workflow, it calls `POST /{node}/run` with the action and the parameters the user set.
 
 ```json
 {
   "action": "new_pools",
   "chain": "base",
   "min_liquidity_usd": "10000",
-  "max_age_minutes": "2880",
   "limit": "10"
 }
 ```
 
-The node handles the action, does the work, and responds:
+The node does the work and returns:
 
 ```json
 {
@@ -63,162 +34,7 @@ The node handles the action, does the work, and responds:
 }
 ```
 
-Outputs from one node flow into the next. The canvas links them.
-
----
-
-## Available nodes
-
-| Node | Route | Category | What it does |
-|------|-------|----------|--------------|
-| **DexScreener** | `/dexscreener` | DeFi Data | Detects newly listed tokens on Base, filtered by liquidity and age |
-| **GeckoTerminal** | `/geckoterminal` | DeFi Data | Scans new pools across chains in real time — 5 actions including OHLCV and trending pools |
-| **GoPlus** | `/goplus` | Security | Runs on-chain security checks — detects honeypots, rug pulls, and risk flags |
-| **Honeypot** | `/honeypot` | Security | Simulates a real buy and sell to confirm a token can actually be sold |
-| **OpenAI** | `/openai` | AI | Runs a prompt through GPT-4o and returns the response |
-| **Telegram** | `/telegram` | Notifications | Sends formatted messages to a Telegram channel or group |
-| **Gruff** | `/gruff` | DeFi | AI trading agent on GOAT Network — checks balances, gets quotes, executes swaps via OKU |
-| **Blaze** | `/blaze` | DeFi | AI trading agent on Stellar — reads order books, executes swaps and limit orders via SDEX |
-| **Trigger** | `/core/trigger` | Core | Schedule and webhook trigger handling |
-
----
-
-## Running locally
-
-**1. Install dependencies**
-
-```bash
-pnpm install
-```
-
-**2. Set environment variables**
-
-Copy the root env file and fill it in:
-
-```bash
-cp .env.example .env
-```
-
-Root `.env`:
-
-```env
-PORT=3100
-```
-
-Each node that needs secrets has its own `.env` inside its folder. Set those up too:
-
-```
-nodes/blaze/.env       — STELLAR_AGENT_SECRET_KEY, SOROSWAP_API_KEY
-nodes/gruff/.env       — GOAT_PRIVATE_KEY, GOAT_RPC_URL
-nodes/openai/.env      — OPENAI_API_KEY
-nodes/telegram/.env    — TELEGRAM_BOT_TOKEN
-```
-
-**3. Start the dev server**
-
-```bash
-pnpm dev
-```
-
-The server starts on `http://localhost:3100`. Hit `/health` to confirm all nodes are registered.
-
-**4. Test a node**
-
-```bash
-curl -X POST http://localhost:3100/geckoterminal/run \
-  -H "Content-Type: application/json" \
-  -d '{"action": "new_pools", "chain": "base", "min_liquidity_usd": "10000", "limit": "5"}'
-```
-
----
-
-## Building
-
-```bash
-pnpm build   # compiles TypeScript to dist/
-pnpm start   # runs the compiled output
-```
-
----
-
-## Adding a new node
-
-Each node follows the same pattern. Here is how to add one.
-
-**1. Create the node folder**
-
-```
-nodes/your-node/
-├── your-node.route.ts       # Express router — mounts /run
-├── your-node.controller.ts  # Handles the request, dispatches by action
-├── your-node.schema.ts      # Zod schemas for each action's input
-├── your-node.actions.ts     # The actual logic for each action
-└── package.json             # Optional — only needed if the node has its own deps
-```
-
-**2. Write the controller**
-
-The controller always reads `action` from the body and dispatches:
-
-```ts
-import { Request, Response } from "express";
-import { MySchema } from "./your-node.schema";
-import { doSomething } from "./your-node.actions";
-
-export async function runYourNode(req: Request, res: Response): Promise<void> {
-  const { action, ...params } = req.body ?? {};
-
-  try {
-    let data: unknown;
-
-    switch (action) {
-      case "do_something":
-        data = await doSomething(MySchema.parse(params));
-        break;
-      default:
-        res.status(400).json({ success: false, data: {}, message: `Unknown action: "${action}"` });
-        return;
-    }
-
-    res.json({ success: true, data, message: "ok" });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    res.status(500).json({ success: false, data: {}, message });
-  }
-}
-```
-
-**3. Write the route**
-
-```ts
-import { Router } from "express";
-import { runYourNode } from "./your-node.controller";
-
-const router = Router();
-router.post("/run", runYourNode);
-
-export default router;
-```
-
-**4. Register it in `src/app.ts`**
-
-```ts
-import yourNodeRouter from "../nodes/your-node/your-node.route";
-// ...
-app.use("/your-node", yourNodeRouter);
-```
-
-**5. Add it to the health check**
-
-In `src/app.ts`, add your node's name to the `nodes` array in the `/health` response.
-
-**6. Register it in the canvas**
-
-Add an entry to `AGENTS` in `provance-client/services/agent.service.ts` so it shows up in the node picker. Set `url` to `${NODES_URL}/your-node`.
-
----
-
-## Node response format
+Outputs from one node flow directly into the next. The canvas handles linking.
 
 Every node must return this shape:
 
@@ -230,15 +46,213 @@ Every node must return this shape:
 }
 ```
 
-On error, return `success: false` with a clear `message`. The engine surfaces this message in the run log.
+---
+
+## ERC-8004 registration
+
+Every node published here is registered as an agent on the ERC-8004 agent registry. This makes the node discoverable by other agents, orchestrators, and tools across the whole ecosystem. Not just Provance.
+
+Each node has a `registration.json` hosted at a public URL. That URL is stored on-chain as the agent's `tokenURI`. Any indexer (like 8004scan) fetches it and surfaces the agent.
+
+### registration.json structure
+
+```json
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Your Node Name",
+  "description": "What this node does.",
+  "image": "https://useprovance.xyz/icons/agents/your-node.svg",
+  "active": true,
+  "x402Support": false,
+  "services": {
+    "web": {
+      "endpoint": "https://nodes.useprovance.xyz/your-node",
+      "actions": [
+        {
+          "key": "action_key",
+          "name": "Action Name",
+          "description": "What this action does.",
+          "endpoint": "https://nodes.useprovance.xyz/your-node/run",
+          "method": "POST",
+          "x402": false,
+          "config": [
+            {
+              "key": "parameters",
+              "label": "Parameters",
+              "fields": [
+                { "key": "chain", "label": "Chain", "type": "select", "options": ["base", "ethereum", "bsc"] },
+                { "key": "limit", "label": "Max results", "type": "number", "placeholder": "10" }
+              ]
+            }
+          ],
+          "result": {
+            "token_address": { "type": "string", "label": "Token address" },
+            "price_usd": { "type": "number", "label": "Price (USD)" }
+          }
+        }
+      ]
+    }
+  },
+  "registrations": [
+    {
+      "agentId": 1,
+      "agentRegistry": "eip155:{chainId}:{registryAddress}"
+    }
+  ]
+}
+```
+
+The `services` object follows ERC-8004. The Provance extension lives inside `services.web.actions` — one entry per callable action with its own `endpoint`, `config` (input schema), and `result` (output schema). The Provance canvas reads this to build the config UI for each node automatically.
+
+Full schema reference: [`docs/provance-agent.md`](../docs/provance-agent.md)
+
+### x402 support
+
+x402 is an HTTP payment protocol that lets agents charge per call. You can declare support at two levels:
+
+**Root level** — whether the agent supports x402 at all:
+
+```json
+{
+  "x402Support": true
+}
+```
+
+**Per action** — whether a specific action requires payment:
+
+```json
+{
+  "key": "execute_trade",
+  "x402": true,
+  "price": {
+    "amount": 0.01,
+    "currency": "USD",
+    "unit": "per call"
+  }
+}
+```
+
+Free actions set `"x402": false` and omit `price`. If an agent has a mix of free and paid actions, set `x402Support: true` at root and mark each action individually.
+
+### Register on any chain
+
+Host your `registration.json` at a public URL then mint the agent on any ERC-8004 compatible registry:
+
+```bash
+cast send <registry-address> \
+  "register(string)(uint256)" \
+  "https://your-url/registration.json" \
+  --rpc-url <rpc-url> \
+  --private-key <your-key>
+```
+
+This returns a token ID. Add it to the `registrations` array in your `registration.json` then update the on-chain URI so indexers re-fetch the metadata:
+
+```bash
+cast send <registry-address> \
+  "setAgentURI(uint256,string)" \
+  <token-id> "https://your-url/registration.json" \
+  --rpc-url <rpc-url> \
+  --private-key <your-key>
+```
+
+Add the registry address in CAIP-10 format: `eip155:{chainId}:{registryAddress}`. Any chain works. A node can appear in multiple registrations across multiple chains.
 
 ---
 
-## Deployment
+## Adding a node
 
-The nodes server is deployed on Railway. The `railway.json` at the root handles the build and start commands. Push to the main branch and Railway picks it up automatically.
+### 1. Create the node folder
 
-The live URL is `https://nodes.useprovance.xyz`. Each node is available at `https://nodes.useprovance.xyz/{node-name}/run`.
+```
+nodes/your-node/
+├── your-node.route.ts       # Express router
+├── your-node.controller.ts  # Handles the request, dispatches by action
+├── your-node.schema.ts      # Zod schemas for each action's input
+├── your-node.actions.ts     # Logic for each action
+└── registration.json        # ERC-8004 metadata
+```
+
+### 2. Write the controller
+
+```ts
+import { Request, Response } from "express";
+
+export async function runYourNode(req: Request, res: Response): Promise<void> {
+  const { action, ...params } = req.body ?? {};
+
+  try {
+    let data: unknown;
+
+    switch (action) {
+      case "action_key":
+        data = await doSomething(params);
+        break;
+      default:
+        res.status(400).json({ success: false, data: {}, message: `Unknown action: "${action}"` });
+        return;
+    }
+
+    res.json({ success: true, data, message: "ok" });
+  } catch (err) {
+    res.status(500).json({ success: false, data: {}, message: err instanceof Error ? err.message : "Unknown error" });
+  }
+}
+```
+
+### 3. Write the route
+
+```ts
+import { Router } from "express";
+import { runYourNode } from "./your-node.controller";
+
+const router = Router();
+router.post("/run", runYourNode);
+
+export default router;
+```
+
+### 4. Register in `src/app.ts`
+
+```ts
+import yourNodeRouter from "../nodes/your-node/your-node.route";
+app.use("/your-node", yourNodeRouter);
+```
+
+### 5. Write your registration.json
+
+Follow the schema above. Each action goes in `services.web.actions` with a `name`, `endpoint`, `config`, and `result`. Set `x402` on every action.
+
+### 6. Register on-chain
+
+Host your `registration.json` and register it on any ERC-8004 registry. See the [ERC-8004 registration](#erc-8004-registration) section above.
+
+---
+
+## Running locally
+
+```bash
+pnpm install
+cp .env.example .env
+pnpm dev
+```
+
+The server starts on `http://localhost:3100`. Hit `/health` to confirm all nodes are up.
+
+```bash
+curl -X POST http://localhost:3100/your-node/run \
+  -H "Content-Type: application/json" \
+  -d '{"action": "action_key", "param": "value"}'
+```
+
+---
+
+## Build
+
+```bash
+pnpm build
+pnpm start
+```
 
 ---
 
@@ -248,5 +262,5 @@ The live URL is `https://nodes.useprovance.xyz`. Each node is available at `http
 - **Framework** — Express
 - **Validation** — Zod
 - **Logging** — Pino
-- **Package manager** — pnpm (workspaces)
+- **Package manager** — pnpm
 - **Deploy** — Railway
